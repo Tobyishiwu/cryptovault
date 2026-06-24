@@ -6,7 +6,9 @@ import {
   syncWallet,
 } from "../controllers/wallet.controller";
 
-import { protect } from "../middleware/auth.middleware";
+import {
+  protect,
+} from "../middleware/auth.middleware";
 
 const router = express.Router();
 

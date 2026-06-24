@@ -1,14 +1,17 @@
-import { Alchemy, Network } from "alchemy-sdk";
+import {
+  Alchemy,
+  Network,
+} from "alchemy-sdk";
 
 import Transaction from "../models/Transaction";
-import Wallet from "../models/Wallet";
 
-const config = {
-  apiKey: process.env.ALCHEMY_API_KEY,
-  network: Network.ETH_SEPOLIA,
-};
-
-const alchemy = new Alchemy(config);
+const alchemy =
+  new Alchemy({
+    apiKey:
+      process.env.ALCHEMY_API_KEY,
+    network:
+      Network.ETH_SEPOLIA,
+  });
 
 export const syncBlockchainTransactions =
   async (
@@ -19,100 +22,80 @@ export const syncBlockchainTransactions =
 
     let createdCount = 0;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Incoming Transfers (Deposits)
-    |--------------------------------------------------------------------------
-    */
+    try {
 
-    const incoming =
-      await alchemy.core.getAssetTransfers({
-        fromBlock: "0x0",
-        toAddress: walletAddress,
-        category: [
-          "external",
-          "internal"
-        ],
-        withMetadata: true,
-      });
-
-    /*
-    |--------------------------------------------------------------------------
-    | Outgoing Transfers (Withdrawals)
-    |--------------------------------------------------------------------------
-    */
-
-    const outgoing =
-      await alchemy.core.getAssetTransfers({
-        fromBlock: "0x0",
-        fromAddress: walletAddress,
-        category: [
-          "external",
-          "internal"
-        ],
-        withMetadata: true,
-      });
-
-    const transfers = [
-      ...incoming.transfers,
-      ...outgoing.transfers,
-    ];
-
-    for (const tx of transfers) {
-
-      const existing =
-        await Transaction.findOne({
-          txHash: tx.hash,
-          userId,
+      const transfers =
+        await alchemy.core.getAssetTransfers({
+          fromBlock: "0x0",
+          toAddress:
+            walletAddress,
+          category: [
+            "erc20",
+          ] as any,
+          withMetadata: true,
         });
 
-      if (existing) {
-        continue;
+      for (
+        const tx of transfers.transfers
+      ) {
+
+        const existing =
+          await Transaction.findOne({
+            txHash: tx.hash,
+            userId,
+          });
+
+        if (existing) {
+          continue;
+        }
+
+        await Transaction.create({
+          userId,
+          walletId,
+
+          chain: "ETH",
+
+          txHash:
+            tx.hash,
+
+          type:
+            "deposit",
+
+          amount:
+            tx.value?.toString() ||
+            "0",
+
+          status:
+            "confirmed",
+
+          fromAddress:
+            tx.from || "",
+
+          toAddress:
+            tx.to || "",
+
+          blockNumber: 0,
+        });
+
+        createdCount++;
       }
 
-      const isDeposit =
-        tx.to?.toLowerCase() ===
-        walletAddress.toLowerCase();
+      return {
+        createdCount,
+        totalTransfers:
+          transfers.transfers.length,
+      };
 
-      await Transaction.create({
-        userId,
-        walletId,
+    } catch (error) {
 
-        chain: "ETH",
+      console.error(
+        "BLOCKCHAIN SYNC ERROR:",
+        error
+      );
 
-        txHash: tx.hash,
-
-        type: isDeposit
-          ? "deposit"
-          : "withdrawal",
-
-        amount:
-          tx.value?.toString() ||
-          "0",
-
-        status: "confirmed",
-
-        fromAddress:
-          tx.from || "",
-
-        toAddress:
-          tx.to || "",
-
-        blockNumber:
-          tx.blockNum
-            ? parseInt(
-                tx.blockNum,
-                16
-              )
-            : 0,
-      });
-
-      createdCount++;
+      return {
+        createdCount: 0,
+        totalTransfers: 0,
+      };
     }
-
-    return {
-      createdCount,
-      totalTransfers:
-        transfers.length,
-    };
   };
