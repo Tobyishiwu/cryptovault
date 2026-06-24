@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+
+frontend/node_modules/
+frontend/dist/
+
+backend/node_modules/
+backend/dist/
+
+.env
+backend/.env
+frontend/.env
+
+coverage/
+.vscode/
+.DS_Store
